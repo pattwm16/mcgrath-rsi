@@ -3,6 +3,9 @@
 source("scripts/helpers.R")
 load("data/cleaned-data.RData")
 
+# file path for output
+file_path <- "figs/safety/"
+
 #1. Any apparent airway or dental injury 
 #   i.e., bleeding, airway trauma, dental fracture, aspiration, or bronchospasm.
 # TODO: no dental frature or aspiration in teeth_injury_specify
@@ -24,7 +27,7 @@ load("data/cleaned-data.RData")
     legend.box.background = element_rect(),
     panel.grid.major.x = element_blank()
   ))
-ggsave(teeth_injury_plot, filename = "figs/teeth_injury_byRandomization.png", 
+ggsave(teeth_injury_plot, filename = paste0(file_path, "teeth_injury_byRandomization.png"), 
          width = 10, height = 6, bg="white")
 
 # Incidence and severity of postoperative cough 
@@ -46,7 +49,7 @@ ggsave(teeth_injury_plot, filename = "figs/teeth_injury_byRandomization.png",
     legend.box.background = element_rect(),
     panel.grid.major.x = element_blank()
   ))
-ggsave(filename = "figs/cough_severity_byRandomization.png", 
+ggsave(filename = paste0(file_path, "cough_severity_byRandomization.png"), 
          width = 10, height = 6, bg="white")
 
 #Incidence and severity of postoperative sore throat, assessed after 2 hours of 
@@ -71,7 +74,7 @@ ggsave(filename = "figs/cough_severity_byRandomization.png",
     legend.box.background = element_rect(),
     panel.grid.major.x = element_blank()
   ))
-ggsave(filename = "figs/sorethroat_severity_byRandomization.png", 
+ggsave(filename = paste0(file_path, "sorethroat_severity_byRandomization.png"), 
          width = 10, height = 6, bg="white")
 
 #Incidence and severity of postoperative hoarseness, assessed after 2 hours of 
@@ -94,10 +97,11 @@ ggsave(filename = "figs/sorethroat_severity_byRandomization.png",
     legend.box.background = element_rect(),
     panel.grid.major.x = element_blank()
   ))
-ggsave(filename = "figs/hoarseness_severity_byRandomization.png", 
+ggsave(filename = paste0(file_path, "hoarseness_severity_byRandomization.png"), 
          width = 10, height = 6, bg="white")
 
 # arrange all as one plot
-ggpubr::ggarrange(teeth_injury_plot, cough_plot, sorethroat_plot, hoarseness_plot, ncol = 2, nrow = 2)
-ggsave(filename = "figs/safety_outcomes_byRandomization.png", 
-         width = 20, height = 15, bg="white")
+ggpubr::ggarrange(teeth_injury_plot, cough_plot, sorethroat_plot, hoarseness_plot, 
+                  ncol = 2, nrow = 2, labels = c("A", "B", "C", "D"))
+ggsave(filename = paste0(file_path, "safety_outcomes_byRandomization.png"), 
+         width = 20, height = 15, bg="white",)

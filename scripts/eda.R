@@ -27,7 +27,7 @@ dev.off()
 
 # save correlation plots of data
 GGally::ggpairs(data, 
-                columns = {{vars}},
+                columns = {{adj_vars}},
                 ggplot2::aes(color=as.factor(randomized_to), alpha = 0.5)) %>%
   ggsave(plot = ., "figs/eda/ggpairs.png", width = 30, height = 30, bg = "white") 
 

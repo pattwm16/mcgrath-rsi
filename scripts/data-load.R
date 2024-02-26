@@ -21,7 +21,7 @@ severity_grades <- c("None", "Mild (less than a common cold)",
                      "Severe (more than a common cold)")
 
 hoarsness_grades <- c("None", "Noticed by the patient only", 
-                     "Aparent to an observer", 
+                     "Apparent to an observer", 
                      "Aphonia")
 
 teeth_status_levels <- c("Edentulous", "Missing frontal teeth", "Full dentition") 
@@ -134,6 +134,33 @@ data <- data %>%
   mutate(start_of_case_date = as.Date(start_of_case_date)) %>%
   ## TODO: inclusion criteria specify less than 45 bmi, two subjects have bmi > 45
   filter(!is.na(randomized_to))
+
+# we conservatively assign the highest possible score in the control group (direct)
+# an the lowest possible score in the treatment group
+# primary: cl_grade
+missing_primary_out <- data %>%
+  filter(is.na(cl_grade)) %>%
+  mutate(cl_grade = case_when(
+    randomized_to == "Direct laryngoscopy" ~ "4",
+    randomized_to == "McGrath videolaryngoscope" ~ "1"
+  )) %>%
+  select(uid, cl_grade, randomized_to)
+
+# update rows with conservative new cl_grade
+data <- rows_update(data, missing_primary_out, by = "uid")
+
+# secondary: intubation_attempts
+missing_secondary_out <- data %>%
+  filter(is.na(intubation_attempts)) %>%
+  mutate(intubation_attempts = case_when(
+    randomized_to == "Direct laryngoscopy" ~ "1",
+    randomized_to == "McGrath videolaryngoscope" ~ "4 or more"
+  )) %>%
+  select(uid, intubation_attempts, randomized_to)
+
+# TODO: is this right?
+# update rows with conservative new intubation attempts
+#data <- rows_update(data, missing_secondary_out, by = "uid")
 
 adj_vars <- c("gender", "height_cm", "weight_kg", "bmi", "age", "asa_class", 
           "mallampati_score", "mobility_cervical_spine", "upper_lip_bite_test_class", 
