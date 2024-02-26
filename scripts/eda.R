@@ -44,5 +44,11 @@ dev.off()
 # Evaluate missing data ----
 # peek at dataset
 visdat::vis_dat(data) %>% 
-  ggsave(file = "figs/missing/visdat.png", 
+  ggsave(file = "figs/missing/missing_data.png", 
          width = 10, height = 10, bg = "white")
+
+# missing data
+naniar::miss_var_summary(data) %>% 
+  mutate(pct_missing = round(pct_miss, 2), .keep = "unused") %>%
+  kbl() %>%
+  kable_classic(full_width = F, html_font = "Cambria")
