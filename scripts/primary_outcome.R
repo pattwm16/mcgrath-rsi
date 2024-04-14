@@ -65,11 +65,19 @@ ggsave(plot = gridExtra::grid.arrange(qq, fitted, ncol = 2),
 (fit1 <- polr.fit.unadjusted %>%
   tbl_regression(exponentiate = TRUE,
                  label = data_labels,
-                 include = randomized_to) %>%
+                 include = randomized_to,
+                 pvalue_fun = purrr::partial(style_sigfig, digits = 3)) %>%
   add_global_p()  %>%
   modify_caption("Proportional odds logistic regression for CL grade"))
 
 gt::gtsave(as_gt(fit1), file = paste0(file_path, "cl_grade_polr.png"))
+
+data %>% 
+  tabyl(randomized_to, cl_grade) %>% 
+  adorn_totals("col") %>%
+  adorn_percentages() %>% 
+  adorn_pct_formatting() %>% 
+  adorn_ns()
 
 # does accounting for center-level effects change the results?
 t1 <- MASS::polr(cl_grade ~ randomized_to, data = data, Hess = TRUE) %>%

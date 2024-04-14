@@ -25,6 +25,14 @@ data %>%
 ggsave(paste0(file_path, "ease_of_intubation_distribution.png"), 
        width = 8, height = 6, bg = "white")
 
+data %>% 
+  tabyl(ease_of_intubation, randomized_to) %>%
+  adorn_totals('row') %>%
+  adorn_percentages('col') %>%
+  adorn_pct_formatting() %>%
+  adorn_ns() %>%
+  adorn_title()
+
 data %>%
   group_by(randomized_to) %>%
   summarise(median = median(as.numeric(ease_of_intubation), na.rm = TRUE))
@@ -50,6 +58,19 @@ data %>%
   )
 ggsave(paste0(file_path, "pogo_score_distribution.png"), 
        width = 8, height = 6, bg = "white")
+
+data %>% 
+  tabyl(pogo_score, randomized_to) %>%
+  adorn_totals('row') %>%
+  adorn_percentages('col') %>%
+  adorn_pct_formatting() %>%
+  adorn_ns() %>%
+  adorn_title()
+
+data %>%
+  group_by(randomized_to) %>%
+  summarise(median = median(as.numeric(pogo_score), na.rm = TRUE))
+
 
 ## 3.	Duration of intubation ----
 data %>%

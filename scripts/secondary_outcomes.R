@@ -9,6 +9,10 @@ file_path <- 'figs/secondary/'
 # visualize data
 data %>% 
   tabyl(intub_success, randomized_to) %>%
+  adorn_totals('row') %>%
+  adorn_percentages('col') %>%
+  adorn_pct_formatting() %>%
+  adorn_ns() %>%
   adorn_title()
 
 # NB: protocol stated chi-squared, but not appropriate (see expected counts)
@@ -32,6 +36,15 @@ data %>%
 # first, change from character to numeric
 data <- data %>%
   mutate(intubation_attempts = as.numeric(intubation_attempts))
+
+# tabyl
+data %>% 
+  tabyl(intubation_attempts, randomized_to) %>%
+  adorn_totals('row') %>%
+  adorn_percentages('col') %>%
+  adorn_pct_formatting() %>%
+  adorn_ns() %>%
+  adorn_title()
 
 # distribution of patients in each glottis visualization class
 data %>%
@@ -69,15 +82,14 @@ data %>%
   group_by(randomized_to) %>%
   summarise(med_attempts = median(as.numeric(intubation_attempts), na.rm = TRUE))
 
-# NB: initially neg. binomial, but count data severely under dispersed. theta -> infinity
-m<-data %>%
+# negative binomial
+data %>%
   MASS::glm.nb(intubation_attempts ~ randomized_to + provider + center, 
                init.theta = 0.005,
-               #trace = 2,
-               #maxit = 50,
+               trace = 2,
                #family = poisson,
-            data = .) #%>%
+            data = .) %>%
   tbl_regression(exponentiate = TRUE,
                  conf.level = 0.975,
                  include = c(randomized_to),
-                 labels = data_labels)
+                 label = data_labels)
