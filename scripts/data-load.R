@@ -8,6 +8,10 @@ file_path <- "scripts/import-r-data.r" # from REDCap
 source(file_path)
 source("scripts/helpers.R")
 
+# specify study center
+center <- c("Istanbul", rep("Konya", 200), rep("Istanbul", 199))
+data$center <- center
+
 # add counts for intubation failure reasons
 counts <- data %>% 
   select(!contains("factor")) %>%
@@ -34,7 +38,7 @@ data <- data %>%
 data <- data %>%
   select(
     # identifiers
-    uid, # is there a center identifier?
+    uid, center,
     # demographics
     age, gender = gender.factor, height_cm, weight_kg, bmi, asa_class = asa, 
     # preop airway eval
@@ -90,13 +94,11 @@ data <- data %>%
     sore_throat_severity = factor(replace_na(sore_throat_severity, "None")),
     hoarseness_severity  = factor(replace_na(hoarseness_severity, "None")),
   ) %>%
-  ## TODO: should teeth_status be ordinal? full denture wasn't an option in the plan
   mutate(teeth_status_ord = case_when(
     teeth_status == "Edentulous" ~ "Edentulous",
     teeth_status == "Missing frontal teeth" ~ "Missing frontal teeth",
     teeth_status %in% c("Full denture", "No missing teeth" ) ~ "No missing teeth"
   )) %>%
-  ## END TODO
   mutate(
     cl_grade                = fct_rev(factor(cl_grade, ordered = TRUE)),
     pogo_score              = factor(pogo_score, ordered = TRUE),
@@ -131,9 +133,11 @@ data <- data %>%
     hoarseness_yn          = as.logical(hoarseness),
     .keep = "unused" # remove old non-logical cols from this mutate call
   ) %>%
+  mutate(intub_success = ifelse(intubation_result == "Intubation successful", 
+                                TRUE, FALSE)
+         ) %>%
   mutate(start_of_case_date = as.Date(start_of_case_date)) %>%
-  ## TODO: inclusion criteria specify less than 45 bmi, two subjects have bmi > 45
-  filter(!is.na(randomized_to))
+  filter(!is.na(randomized_to)) # note 6 patients were missing randomization status
 
 # we conservatively assign the highest possible score in the control group (direct)
 # an the lowest possible score in the treatment group
@@ -167,7 +171,7 @@ adj_vars <- c("gender", "height_cm", "weight_kg", "bmi", "age", "asa_class",
           "mandibular_protrusion_test", "teeth_status", "osa_yn", "snoring_yn", "cpap_use_yn", 
           "difficult_airway_hx_yn", "inter_incisor_gap_cm", "mouth_opening_cm", 
           "thyromental_distance_cm", "thyromental_height_cm", "sternomental_distance_cm", 
-          "neck_circumference_cm")
+          "neck_circumference_cm", "center")
 
 # save cleaned dataset
 save(data, adj_vars, file = "data/cleaned-data.RData")

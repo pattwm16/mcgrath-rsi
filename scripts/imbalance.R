@@ -11,7 +11,7 @@ load("data/cleaned-data.RData")
                                data = data,
                                test = FALSE))
 
-# TODO: What was the threshold equation for imbalanced groups? Can't do 2/n?
+# using Austin 2009
 imbal_thresh <- 1.96*sqrt(2/(nrow(data)/2))
 
 # extract the SMD values and save to pdf
@@ -32,8 +32,7 @@ stddiffs %>%
     caption = "Standardized mean differences for potential confounders",
     booktabs = T, 
     escape = F,
-    col.names = c("Covariate", "ASD", "Adjust? (0.1)", 
-                  "Adjust (Data-derived)")
+    col.names = c("Covariate", "ASD", "Adjust? (0.1)", "Adjust? (Austin 2009)")
       ) %>%
   kableExtra::kable_classic(full_width = FALSE, position = "center", 
                             html_font = "Cambria") %>%

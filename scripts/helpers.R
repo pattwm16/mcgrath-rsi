@@ -3,6 +3,7 @@
 require(labelled)
 require(janitor)
 require(latex2exp)
+require(gtsummary)
 require(tidyverse)
 
 
@@ -66,7 +67,9 @@ calculate_stddiff <- function(data, group) {
 }
 
 
-data_labels <- c(age = "Age (years)",
+data_labels <- c(randomized_to = "Randomized to",
+                 center = "Study center",
+                 age = "Age (years)",
                  gender = "Sex",
                  mallampati_score = "Mallampati score",
                  mobility_cervical_spine = "Mobility of the cervical spine (degrees)",

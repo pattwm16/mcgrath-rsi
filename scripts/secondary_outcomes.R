@@ -5,13 +5,41 @@ load("data/cleaned-data.RData")
 # intubation failure
 file_path <- 'figs/secondary/'
 
+## INTUBATION FAILURE - secondary outcome
+# visualize data
+data %>% 
+  tabyl(intub_success, randomized_to) %>%
+  adorn_title()
+
+# NB: protocol stated chi-squared, but not appropriate (see expected counts)
+data %>%
+  tabyl(intub_success, randomized_to) %>%
+  chisq.test(simulate.p.value = TRUE) %>%
+  .$expected # < 5 in 50% of cells -> so use fisher's exact test
+
+# fisher's exact test
+data %>%
+  tabyl(intub_success, randomized_to) %>%
+  fisher.test(conf.level = 0.975) # RR b/c this is cohort study
+# p = 0.36, RR = 0.32 (0.002, 5.36)
+
+# median values
+data %>%
+  group_by(randomized_to) %>%
+  summarise(med_attempts = median(as.numeric(intubation_attempts), na.rm = TRUE))
+
+## NUMBER OF INTUBATIONS - secondary outcome
+# first, change from character to numeric
+data <- data %>%
+  mutate(intubation_attempts = as.numeric(intubation_attempts))
+
 # distribution of patients in each glottis visualization class
 data %>%
   filter(!is.na(intubation_attempts)) %>%
   ggplot(aes(x = intubation_attempts, fill = randomized_to)) +
   geom_text(stat='count', aes(label=..count..), position=position_dodge(width=0.9), vjust=-0.5) +  # Add count labels
   geom_bar(position = "dodge", color = 'black') +
-  labs(title = "Distribution of intubation attempts by randomization group",
+  labs(#title = "Distribution of intubation attempts by randomization group",
        caption = paste0("Missing data for ", data %>% filter(is.na(intubation_attempts)) %>% nrow(), " patients"),
        x = "Number of intubation attempts",
        y = "Count") +
@@ -28,22 +56,28 @@ data %>%
 ggsave(paste0(file_path, "intubation_attempts_distribution.png"), 
        width = 8, height = 6, bg = "white")
 
-# unadjusted analysis of mann-whitney u test for cl_grade
+# unadjusted analysis of mann-whitney u test for intubation attempts
 data %>%
-  filter(!is.na(intubation_attempts)) %>%
+  filter(!is.na(intubation_attempts)) %>% # remove missing data
   mutate(intubation_attempts = as.numeric(intubation_attempts)) %>%
-  wilcox_test(intubation_attempts ~ randomized_to, data = .)
+  rstatix::wilcox_test(intubation_attempts ~ randomized_to, data = .,
+                       paired = FALSE)
 # p-value 0.87, can't reject null of no difference
 
+# median number of attempts
 data %>%
-  mutate(intubation_attempts = as.numeric(intubation_attempts) - 1) %>%
-  mutate(
-    across(c(mallampati_score, mobility_cervical_spine, upper_lip_bite_test_class, 
-             mandibular_protrusion_test, teeth_status), 
-           ~ factor(., ordered = FALSE))
-  ) %>%
-  MASS::glm.nb(intubation_attempts ~ randomized_to + teeth_status + upper_lip_bite_test_class +
-                 mallampati_score + gender + mouth_opening_cm + bmi + thyromental_height_cm +
-                 thyromental_distance_cm + mandibular_protrusion_test + mobility_cervical_spine, data = .) %>%
-  tbl_regression(exponentiate = TRUE)
-# no significant differences in intubation attempts
+  group_by(randomized_to) %>%
+  summarise(med_attempts = median(as.numeric(intubation_attempts), na.rm = TRUE))
+
+# NB: initially neg. binomial, but count data severely under dispersed. theta -> infinity
+m<-data %>%
+  MASS::glm.nb(intubation_attempts ~ randomized_to + provider + center, 
+               init.theta = 0.005,
+               #trace = 2,
+               #maxit = 50,
+               #family = poisson,
+            data = .) #%>%
+  tbl_regression(exponentiate = TRUE,
+                 conf.level = 0.975,
+                 include = c(randomized_to),
+                 labels = data_labels)

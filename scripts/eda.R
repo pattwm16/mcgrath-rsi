@@ -43,7 +43,7 @@ dev.off()
 
 # Evaluate missing data ----
 # peek at dataset
-visdat::vis_dat(data) %>% 
+visdat::vis_dat(data, facet = randomized_to) %>% 
   ggsave(file = "figs/missing/missing_data.png", 
          width = 10, height = 10, bg = "white")
 
@@ -52,3 +52,9 @@ naniar::miss_var_summary(data) %>%
   mutate(pct_missing = round(pct_miss, 2), .keep = "unused") %>%
   kbl() %>%
   kable_classic(full_width = F, html_font = "Cambria")
+
+# are outcome variables missing?
+data %>%
+  select(randomized_to, intubation_result, cl_grade, intubation_attempts, teeth_injury_yn, teeth_injury_specify,
+         cough_yn, cough_severity, sore_throat_yn, sore_throat_severity, hoarseness_yn, hoarseness_severity) %>%
+  naniar::vis_miss(., facet = randomized_to)

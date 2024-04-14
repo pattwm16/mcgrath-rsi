@@ -1,0 +1,356 @@
+---
+title: "Comparison of McGrath Videolaryngoscopy and Direct Laryngoscopy for Rapid Sequence Intubation: an international, multicenter randomized trial"
+author: "Will Patterson"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: cerulean
+    toc: yes
+    toc_float:
+      collapsed: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center')
+
+library(gtsummary)
+library(table1)
+library(stddiff)
+library(kableExtra)
+
+# load data
+source("scripts/helpers.R")
+load("data/cleaned-data.RData")
+```
+
+## Study overview
+
+This analysis was conducted with data from `r nrow(data)` patients who were randomized to either videolaryngoscopy (n = `r data %>% filter(randomized_to == "McGrath videolaryngoscope") %>% nrow()`) or direct laryngoscopy (`r data %>% filter(randomized_to == "Direct laryngoscopy") %>% nrow()`). The primary outcome of interest is the visualization of the vocal cords, as measured by the Cormack and Lehane classification. 
+
+
+```{r echo=FALSE}
+rndr <- function(x, name, ...) {
+  if (!is.numeric(x)) return(render.categorical.default(x))
+  Q1 <- quantile(x, 0.25, na.rm = T)
+  Q3 <- quantile(x, 0.75, na.rm = T)
+  what <- switch(name,
+                 age = "Median [Q1, Q3]",
+                 mouth_opening_cm  = "Mean (SD)",
+                 inter_incisor_gap_cm = "Mean (SD)",
+                 thyromental_distance_cm = "Mean (SD)",
+                 sternomental_distance_cm = "Mean (SD)",
+                 neck_circumference_cm = "Median [Q1, Q3]")
+  parse.abbrev.render.code(c("", what))(x)
+}
+
+label(data$age) <- "Age"
+label(data$mobility_cervical_spine) <- "Mobility of the cervical spine (degrees)"
+label(data$mouth_opening_cm) <- "Mouth opening"
+label(data$inter_incisor_gap_cm) <- "Inter-incisor gap"
+label(data$thyromental_distance_cm) <- "Thyromental distance"
+label(data$sternomental_distance_cm) <- "Sternomental distance"
+label(data$upper_lip_bite_test_class) <- "Upper lip bite test class"
+label(data$mallampati_score) <- "Mallampati score"
+label(data$teeth_status) <- "Teeth status"
+label(data$mandibular_protrusion_test) <- "Mandibular protrusion test"
+label(data$neck_circumference_cm) <- "Neck circumference"
+
+units(data$age) <- "years"
+units(data$mobility_cervical_spine) <- "degrees"
+units(data$mouth_opening_cm) <- "cm"
+units(data$inter_incisor_gap_cm) <- "cm"
+units(data$thyromental_distance_cm) <- "cm"
+units(data$sternomental_distance_cm) <- "cm"
+units(data$neck_circumference_cm) <- "cm"
+
+# create table1
+table1(~ age + mobility_cervical_spine + mouth_opening_cm + inter_incisor_gap_cm + 
+         thyromental_distance_cm + sternomental_distance_cm + upper_lip_bite_test_class + 
+         mallampati_score + teeth_status + mandibular_protrusion_test + neck_circumference_cm | randomized_to,
+       data = data,
+       render = rndr)
+```
+
+
+### Addressing data imbalance by group randomization
+
+From the above table, it appears the randomized groups differ by a few characteristics that were determined *a priori* to be potential confounders. To quantify the difference, we calculate the absolute standardized difference that tells us the observed magnitude of difference. 
+
+$$ASD=\frac{100\times|\hat{p}_{video}-\hat{p}_{direct}|}{\sqrt{\frac{\hat{p}_{video}(1-\hat{p}_{video})+\hat{p}_{direct}(1-\hat{p}_{direct})}{2}}}$$
+These values are shown in the table below.
+
+```{r, warning=FALSE}
+stddiffs <- calculate_stddiff(data, randomized_to) %>% rownames_to_column("name")
+stddiffs %>%
+  arrange(desc(stddiff)) %>%
+  filter(name %in% adj_vars) %>%
+  mutate(adj_0.1 = stddiff >= 0.1) %>%
+  select(name, stddiff, adj_0.1) %>%
+  kbl(caption = "Standardized mean differences for potential confounders",
+    booktabs = T, 
+    escape = F,
+    col.names = c("Covariate", "ASD", "Adjust? (0.1)")) %>%
+  kable_classic(full_width = FALSE, position = "center", 
+                            html_font = "Cambria")
+```
+
+Values with an ASD of 0.1 or greater (i.e., Adjust? column is `TRUE`) are considered to be imbalanced between the two groups. We will adjust for these variables in the analysis.
+
+## Primary hypothesis: Visualization
+
+**Videolaryngoscopy improves visualization of the vocal cords, defined using the modified Cormack and Lehane classification (primary outcome), versus direct laryngoscopy.**
+
+### Distribution of Cormack and Lehane scores
+
+First, we examine the distribution of Cormack and Lehane (CL) scores by randomization group. A lower CL score indicates a better visualization (e.g., a score of 1 indicates full view of the glottis).
+
+```{r echo = FALSE, warning = FALSE, message = FALSE}
+data %>%
+  filter(!is.na(cl_grade)) %>%
+  ggplot(aes(x = cl_grade, fill = randomized_to)) +
+  geom_text(stat='count', aes(label=..count..), position=position_dodge(width=0.9), vjust=-0.5) +  # Add count labels
+  geom_bar(position = "dodge", color = 'black') +
+  labs(title = "Distribution of glottis visualization by randomization group",
+       caption = paste0("Missing data for ", data %>% filter(is.na(cl_grade)) %>% nrow(), " patients"),
+       x = "Cormack and Lehane classification",
+       y = "Count") +
+  theme_linedraw(base_size = 15) +
+  theme(
+    legend.title = element_blank(),
+    legend.position = c(.05, .95),
+    legend.justification = c("left", "top"),
+    legend.box.just = "right",
+    legend.margin = margin(-4, 6, 6, 6),
+    legend.box.background = element_rect(),
+    panel.grid.major.x = element_blank()
+  )
+```
+
+Here, it appears that the distribution of CL scores is similar between the two randomization groups. Indeed, the median CL score is the same for both groups (2a). We can test whether the distribution of these scores is different by randomization status two ways: crude analysis (Wilcoxon-Mann-Whitney test) and adjusted analysis (proportional odds logistic regression model).
+
+### Crude analysis: Wilcoxon-Mann-Whitney
+
+We used the Wilcoxon-Mann-Whitney test to formally compare categorical outcome of glottis visualization (Cormack and Lehane classification) at the 5% significance level between the two study groups. This test does not account for any potential confounding variables.
+
+```{r}
+# Wilcoxon-Mann-Whitney test
+(ph1_wmw <- data %>%
+  filter(!is.na(cl_grade)) %>%
+  mutate(cl_grade = as.numeric(cl_grade)) %>%
+  rstatix::wilcox_test(cl_grade ~ randomized_to, data = .))
+```
+
+The Wilcoxon-Mann-Whitney test does not suggest that there is a significant difference in the distribution of CL scores between the two randomization groups (p = `r round(ph1_wmw$p, 2)`).
+
+### Adjusted analysis: proportion odds logistic regression model
+
+```{r, results='hide', echo=FALSE}
+reg_data <- data %>%
+  select(cl_grade, randomized_to, teeth_status, upper_lip_bite_test_class,
+         mallampati_score, gender, mouth_opening_cm, bmi, thyromental_height_cm,
+         thyromental_distance_cm, mandibular_protrusion_test, 
+         mobility_cervical_spine) %>%
+  mutate(
+    across(c(mallampati_score, mobility_cervical_spine, upper_lip_bite_test_class, 
+             mandibular_protrusion_test, teeth_status), 
+           ~ factor(., ordered = FALSE)),
+    cl_grade_n = as.numeric(cl_grade)
+  ) %>% 
+  complete.cases(cl_grade, randomized_to, teeth_status, upper_lip_bite_test_class,
+         mallampati_score, gender, mouth_opening_cm, bmi, thyromental_height_cm,
+         thyromental_distance_cm, mandibular_protrusion_test, 
+         mobility_cervical_spine)
+glm.fit.saturated <- 
+  MASS::polr(cl_grade ~ randomized_to + teeth_status + upper_lip_bite_test_class +
+               mallampati_score + gender + mouth_opening_cm + bmi + thyromental_height_cm +
+               thyromental_distance_cm + mandibular_protrusion_test + mobility_cervical_spine,
+             data = reg_data, Hess = TRUE)
+```
+
+```{r}
+(fit1 <- glm.fit.saturated %>%
+  tbl_regression(exponentiate = TRUE) %>%
+  add_global_p()  %>%
+  modify_caption("Proportional odds logistic regression for CL grade"))
+```
+
+The proportional odds logistic regression model does not support an improvement in glottis visualization (as measured by CL score) with randomization to the videolaryngoscopy group (OR = `r round(fit1$table_body$estimate[3], 2)`, 95% CI `r round(fit1$table_body$conf.low[3], 2)`-`r round(fit1$table_body$conf.high[3], 2)`, p = `r round(fit1$table_body$p.value[1], 2)`).
+
+Results from the crude and adjusted analysis of the primary hypothesis align: this study does not provide evidence that videolaryngoscopy improves visualization of the vocal cords compared to direct laryngoscopy.
+
+## Secondary hypothesis: Intubation attempts/failures
+
+**McGrath videolaryngoscopy decreases number of intubation attempts and the number of intubation failures compared to direct laryngoscopy.**
+
+### Intubation attempts
+```{r echo = FALSE, warning = FALSE, message = FALSE}
+data %>%
+  filter(!is.na(intubation_attempts)) %>%
+  ggplot(aes(x = intubation_attempts, fill = randomized_to)) +
+  geom_text(stat='count', aes(label=..count..), position=position_dodge(width=0.9), vjust=-0.5) +  # Add count labels
+  geom_bar(position = "dodge", color = 'black') +
+  labs(title = "Distribution of intubation attempts by randomization group",
+       caption = paste0("Missing data for ", data %>% filter(is.na(intubation_attempts)) %>% nrow(), " patients"),
+       x = "Number of intubation attempts",
+       y = "Count") +
+  theme_linedraw(base_size = 15) +
+  theme(
+    legend.title = element_blank(),
+    legend.position = c(.95, .95),
+    legend.justification = c("right", "top"),
+    legend.box.just = "right",
+    legend.margin = margin(-4, 6, 6, 6),
+    legend.box.background = element_rect(),
+    panel.grid.major.x = element_blank()
+  )
+```
+
+Again, the distribution of intubation attempts seems similar between the groups. We are missing data for 7 patients (3 in the direct laryngoscopy group and 4 in the videolaryngoscopy group).
+
+```{r}
+data %>% 
+  tabyl(randomized_to, intubation_attempts) %>% 
+  adorn_title()
+```
+
+We used both crude (Wilcoxon-Mann-Whitney) and adjusted analyses (negative binomial regression) to test whether the number of intubation attempts differed between the two randomization groups. 
+#### Crude analysis: Wilcoxon-Mann-Whitney
+
+```{r}
+# Wilcoxon-Mann-Whitney test (crude analysis)
+(sh1_wmw <- data %>%
+  filter(!is.na(intubation_attempts)) %>%
+  mutate(intubation_attempts = as.numeric(intubation_attempts)) %>%
+  rstatix::wilcox_test(intubation_attempts ~ randomized_to, data = .))
+```
+
+There was not evidence to support the hypothesis that the number of intubation attempts differed between the two randomization groups (p = `r round(sh1_wmw$p, 2)`).
+
+#### Adjusted analysis: proportion odds logistic regression model
+
+```{r echo = FALSE, warning=FALSE}
+fit2 <- data %>%
+  mutate(intubation_attempts = as.numeric(intubation_attempts) - 1) %>%
+  mutate(
+    across(c(mallampati_score, mobility_cervical_spine, upper_lip_bite_test_class, 
+             mandibular_protrusion_test, teeth_status), 
+           ~ factor(., ordered = FALSE))
+  ) %>%
+  MASS::glm.nb(intubation_attempts ~ randomized_to + teeth_status + upper_lip_bite_test_class +
+                 mallampati_score + gender + mouth_opening_cm + bmi + thyromental_height_cm +
+                 thyromental_distance_cm + mandibular_protrusion_test + mobility_cervical_spine, data = .)
+```
+
+```{r}
+fit2 %>%
+  tbl_regression(exponentiate = TRUE) %>%
+  add_global_p()
+```
+
+Similar to our crude analysis, the adjusted analysis does not support the hypothesis that the number of intubation attempts differed between the two randomization groups.
+
+### Intubation failures
+
+There were 4 intubation failures in the study, three from the McGrath videolaryngoscope and one from the direct laryngoscope. 
+
+```{r}
+(intub_fail <- data %>%
+  mutate(intub_success = ifelse(intubation_result == "Intubation successful", TRUE, FALSE)) %>%
+  select(intub_success, randomized_to) %>%
+  table())
+```
+
+#### Crude analysis: Chi-squared test
+
+```{r}
+(intub_fail_test <- intub_fail %>% 
+  rstatix::chisq_test(intub_success ~ randomized_to))
+```
+
+The chi-squared test does not support the hypothesis that the number of intubation failures differed between the two randomization groups (p = `r round(intub_fail_test$p, 2)`).
+
+## Safety outcomes
+
+Safety outcomes were analysed by study groups without formal statistical testing of the difference. Safety was assessed by four outcomes:
+
+1. 	Incidence of cut lips, airway injury, or dental injury;
+2.	Incidence of postoperative coughing; 
+3.	Incidence or severity of postoperative sore throat;
+4.	Incidence or severity of postoperative hoarseness.
+
+```{r echo=FALSE}
+(teeth_injury_plot <- data %>%
+  mutate(teeth_injury_specify = ordered(teeth_injury_specify, levels = c("No injury", "Bleeding", "Bronchospasm", "Cut lip"))) %>%
+  mutate(teeth_injury_specify = fct_relevel(teeth_injury_specify, "No injury")) %>%
+  #filter(teeth_injury_specify != "No injury") %>%
+  ggplot(aes(x = randomized_to, fill = teeth_injury_specify)) +
+  geom_bar(position="dodge", color = 'black') +
+  geom_text(stat='count', aes(label=..count..), position=position_dodge(width=0.9), vjust=-0.5) +  # Add count labels
+  labs(x = "", y = "", fill = "Airway / dental injury") +
+  theme_linedraw(base_size = 15) +
+  theme(
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.position = c(.95, .95),
+    legend.justification = c("right", "top"),
+    legend.box.just = "right",
+    legend.margin = margin(4, 6, 6, 6),
+    legend.box.background = element_rect(),
+    panel.grid.major.x = element_blank()
+  ))
+
+(cough_plot <- data %>%
+  ggplot(aes(x = randomized_to, fill = cough_severity)) +
+  geom_bar(position="dodge", color = 'black') +
+  geom_text(stat='count', aes(label=..count..), position=position_dodge(width=0.9), vjust=-0.5) +  # Add count labels
+  labs(x = "", y = "", fill = "Cough") +
+  theme_linedraw(base_size = 15) +
+  theme(
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.position = c(.98, .95),
+    legend.justification = c("right", "top"),
+    legend.box.just = "right",
+    legend.margin = margin(4, 6, 6, 6),
+    legend.box.background = element_rect(),
+    panel.grid.major.x = element_blank()
+  ))
+
+(sorethroat_plot <- data %>%
+  ggplot(aes(x = randomized_to, fill = sore_throat_severity)) +
+  geom_bar(position="dodge", color = 'black') +
+  geom_text(stat='count', aes(label=..count..), position=position_dodge(width=0.9), vjust=-0.5) +  # Add count labels
+  labs(x = "", y = "", fill = "Sore throat") +
+  theme_linedraw(base_size = 15) +
+  theme(
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.position = c(.98, .95),
+    legend.justification = c("right", "top"),
+    legend.box.just = "right",
+    legend.margin = margin(4, 6, 6, 6),
+    legend.box.background = element_rect(),
+    panel.grid.major.x = element_blank()
+  ))
+
+(hoarseness_plot <- data %>%
+  ggplot(aes(x = randomized_to, fill = hoarseness_severity)) +
+  geom_bar(position="dodge", color = 'black') +
+  geom_text(stat='count', aes(label=..count..), position=position_dodge(width=0.9), vjust=-0.5) +  # Add count labels
+  labs(x = "", y = "", fill = "Hoarseness") +
+  theme_linedraw(base_size = 15) +
+  theme(
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.position = c(.98, .95),
+    legend.justification = c("right", "top"),
+    legend.box.just = "right",
+    legend.margin = margin(4, 6, 6, 6),
+    legend.box.background = element_rect(),
+    panel.grid.major.x = element_blank()
+  ))
+```
+
+The incidence of all safety outcomes was similar across groups.
+
+###

@@ -10,6 +10,7 @@ file_path <- "figs/safety/"
 #   i.e., bleeding, airway trauma, dental fracture, aspiration, or bronchospasm.
 # TODO: no dental frature or aspiration in teeth_injury_specify
 (teeth_injury_plot <- data %>%
+  mutate(teeth_injury_specify = ordered(teeth_injury_specify, levels = c("No injury", "Bleeding", "Bronchospasm", "Cut lip"))) %>%
   mutate(teeth_injury_specify = fct_relevel(teeth_injury_specify, "No injury")) %>%
   #filter(teeth_injury_specify != "No injury") %>%
   ggplot(aes(x = randomized_to, fill = teeth_injury_specify)) +
@@ -105,3 +106,21 @@ ggpubr::ggarrange(teeth_injury_plot, cough_plot, sorethroat_plot, hoarseness_plo
                   ncol = 2, nrow = 2, labels = c("A", "B", "C", "D"))
 ggsave(filename = paste0(file_path, "safety_outcomes_byRandomization.png"), 
          width = 20, height = 15, bg="white",)
+
+# test if there is a difference in hoarseness and cough
+
+data %>% 
+  mutate(cough_yn = as.numeric(cough_severity)) %>%
+  rstatix::wilcox_test(cough_yn ~ randomized_to, data = .)
+
+data %>% 
+  mutate(hoarseness_yn = as.numeric(hoarseness_severity)) %>%
+  rstatix::wilcox_test(hoarseness_yn ~ randomized_to, data = .)
+
+data %>%
+  mutate(sore_throat_yn = as.numeric(sore_throat_severity)) %>%
+  rstatix::wilcox_test(sore_throat_yn ~ randomized_to, data = .)
+
+data %>%
+  mutate(teeth_injury_yn = as.numeric(teeth_injury_yn)) %>%
+  rstatix::wilcox_test(teeth_injury_yn ~ randomized_to, data = .)
